@@ -1,0 +1,376 @@
+---
+title: "Lab I: Titanic riddles"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Reminders you can delete if you don't want them in your code or report:
+
+#### Shortcuts:
+
+- Use **CTRL ALT I** to add a new code chunk
+  - Use a new code chunk to answer a new question (or subquestion)
+  
+- Use **ALT -** for the assignment operator <-
+
+- Use **CTRL SHIFT M** for the pipe function %>%
+
+- Check out the dropdown menu at top right next to "Run" by clicking on the down arrow
+  - It will show you the shortcuts to **run a line, run current chunk, all chunks above, and all chunks**
+
+#### Good advice on function:
+
+- Use **read_csv** (NOT read.csv) to load the data
+  
+- When **%>%** function cannot be found, load the tidyverse library again
+
+- Do not load the libraries the instructions ask you **not** to load  
+
+  - **To load packages**: Run library("package_name")
+  - **Use without loading**: Specify package as **package_name::function_name**
+  - **To install packages:** Run install.packages("package_name") or use RStudio menu
+    - You might want to install packages for your project. Otherwise, you are covered.
+
+- R/RStudio is **case sensitive**, so lower vs. Upper case are different
+
+#### Good advice on style:
+
+- We are following the **Tidyverse Style Guide** (https://style.tidyverse.org/), **so does Google** (https://google.github.io/styleguide/Rguide.html)
+
+- Name objects and columns/variables by...
+  - either using an underscore such as **weekly_sales (preferable)**
+  - or starting lowercase and using uppercase for each word such as **weeklySales (still readable)**
+  
+- You will likely see a mix of the two styles in the labs/assignments
+  - Recently, I use **the former style for object names and the latter for column/variable names**
+  
+- There is much more to style: Keep up with the spaces, correct indentations, etc.
+  - When in doubt, visit **style.tidyverse.org** and/or **use the Styler package**
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions (& subquestions). You can delete this comment if you like.
+
+***
+
+```{r}
+library("tidyverse")
+library("tidymodels")
+library("tidylog")
+library("styler")
+```
+
+### Load the Titanic dataset
+
+```{r}
+df_titanic <-
+  read_csv("data/titanic.csv") %>%
+  rename_all(tolower)
+```
+
+**What was in the Titanic dataset?**
+
+To see the following table in a nice format, you can click on Preview in the menu above.
+
+Variable | Definition    | Key                        | 
+---------|:--------------|:-------------------------- |
+survived |	Survival     |	0 = No, 1 = Yes           |
+class    |	Ticket class |	1 = 1st, 2 = 2nd, 3 = 3rd |
+name	   |  Name         |                            |
+sex	     |  Gender       |                            |
+age      |	Age in years |                            |
+sibsp    |	# of siblings / spouses aboard the Titanic	| |
+parch    |	# of parents / children aboard the Titanic	| |
+ticket   |	Ticket number	|                           |
+fare     |	Passenger fare|                           |
+cabin	   |  Cabin number  |                           |
+embarked |	Port of Embarkation	C = Cherbourg, Q = Queenstown, S = Southampton |         |
+
+
+### Practice the Tidyverse functions   
+  
+
+#### Part 1: Arrange
+
+**Q&A**: Sort the Titanic dataset by age from high to low.
+
+```{r}
+df_titanic %>%
+  arrange(desc(age))
+```
+
+**Part 1 Q1**: You're looking for a passenger with a last name "Zimmerman." Sort the data in a way to spot his visually in the table.
+
+```{r}
+df_titanic %>%
+  arrange(desc(name))
+```
+
+**Part 1 Q2**: You're looking for the infant twins who boarded the Titanic together. Sort the data in a way to spot them visually in the table.
+
+```{r}
+df_titanic %>%
+  arrange(age)
+```
+
+#### Part 2: Select
+
+**Q&A**: Select only the name, age, and survived columns.
+
+```{r}
+df_titanic %>%
+  select(name, age, survived)
+```
+
+**Part 2 Q1**: You want to select all columns except the sex column.
+Hint: You can simply use the negative sign!
+
+```{r}
+df_titanic %>%
+  select(-sex)
+```
+
+**Part 2 Q2**: You want to keep all of the columns but rearrange them so that class and fare are the first two columns.
+Hint: There is a shortcut for that. Google "tidyverse relocate" for a clue.
+
+```{r}
+df_titanic %>%
+  relocate(pclass, fare)
+```
+
+#### Part 3: Filter
+
+**Q&A**: Filter the dataset to the male passengers who have survived.
+
+```{r}
+df_titanic %>%
+  filter(sex == "male", survived == 1) # Note how filter uses double equal
+
+# Time to learn: Single equal is an assignment operator used to assign the values to the variables. But, double equal is relational operator used to compare two variable values whether they are equal are not.
+```
+
+**Part 3 Q1**: You wonder how many of the survived passengers were older than 35
+Hint: Yes you can see the number of rows at the bottom when you print the filtered data frame, but you can also pipe it into the nrow() function.
+
+```{r}
+df_titanic %>%
+  filter(survived == 1, age >= 35)
+```
+
+**Part 3 Q2**: Remember the twins from Part 1? Now you want to find their parent (using the filter function).
+Hint: Google "stringr tidyverse" and check out the very first function in the cheatsheet of stringr.
+
+```{r}
+df_titanic %>%
+  filter(str_detect(name, "Baclini"))
+```
+
+#### Part 4: Filter within groups
+
+**Q&A**: Filter to the embarkation ports from which at least 100 passengers survived.
+
+```{r}
+df_titanic %>%
+  group_by(embarked) %>%
+  filter(sum(survived) >= 100) %>% # Note that this line calculates the totals for each group (embarkation port) and compares with a constant
+  ungroup()
+```
+
+**Part 4 Q1**: You want to filter to the passenger classes in which the average fare for the tickets was over $20.
+
+```{r}
+df_titanic %>%
+  group_by(pclass) %>%
+  filter(fare >= 20) %>%
+  ungroup()
+```
+
+#### Part 5: Mutate
+
+**Q&A**: Create a new column called age_group: Children (under 15 years old), Working-age (15-64 years) and Elderly (65 years and older)
+
+```{r}
+df_titanic %>%
+  mutate(age_group = ifelse(age < 15, "Children", ifelse(age >= 15 & age <= 64, "Working-age", "Elderly"))) # Two ifelse statements together. Read from left.
+```
+
+**Part 5 Q1**: You want to create a new variable called fare_category which divides the ticket prices into three bins: Low (<20), Medium (20-60), and High (>60).
+
+```{r}
+df_titanic %>%
+  mutate(fare_category = ifelse(fare < 20, "Low", ifelse(fare >= 20 & fare <= 60, "Medium", "High")))
+```
+
+**Part 5 Q2**: You want to add a new variable called family_on_board that adds up the number of passengers from one's family including siblings/spouses, parents/children, and oneself.
+Also sort by your calculated variable in a descending order to find the most crowded family on board.
+
+```{r}
+df_titanic %>%
+  mutate(family_on_board = 1 + sibsp + parch) %>%
+  arrange(desc(family_on_board))
+# added a 1 because name is a text, can't add text values
+```
+
+#### Part 6: Mutate within groups
+
+**Q&A**: Based on whether passengers survived or not, calculate the difference of the fare from the mean of each group. Save it to fare_deviation variable.
+Because you are interested in deviation in absolute terms, use take the absolute value.
+
+```{r}
+df_titanic %>%
+  group_by(survived) %>%
+  mutate(fare_deviation = abs(fare - mean(fare))) %>% # Curious about what abs() does? Type ?abs() into the Console.
+  ungroup()
+```
+
+**Part 6 Q1**: Create a new variable that shows the number of people who are on the same ticket.
+Hint: Group by the ticket number and use n() function to get the counts. You can ask R about ?n() too.
+
+```{r}
+df_titanic %>%
+  group_by(ticket) %>%
+  mutate(people_on_ticket = n()) %>%
+  ungroup()
+```
+
+#### Part 7: Summarize
+
+**Q&A**: Use the summarize function to find the average age of all passengers.
+
+```{r}
+df_titanic %>%
+  summarize(mean_age = mean(age, na.rm = TRUE)) # na.rm=TRUE is there to exclude missing values. Try removing it and see what happens!
+```
+
+**Part 7 Q1**: You are curious about the average price (fare) a passenger paid to get on board the Titanic.
+
+```{r}
+df_titanic %>%
+  summarize(avg_fare = mean(fare, na.rm = TRUE))
+```
+
+#### Part 8: Summarize within groups
+
+**Q&A**: Calculate the average fare of the passengers who survived. Compare it with the ones who did not survive.
+
+```{r}
+df_titanic %>%
+  group_by(survived) %>%
+  summarize(fare_by_survival = mean(fare, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+**Part 8 Q1**: You need the ages of the youngest and oldest passengers who survived and those who did not survive.
+Hint: After grouping by survived or not, use the min() and max() functions.
+
+```{r}
+df_titanic %>%
+  group_by(survived) %>%
+  summarize(youngest = min(age, na.rm = TRUE), oldest = max(age, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+**Part 8 Q2**: You need the minimum, maximum, and average price (fare) that passengers of each class paid to get on the ship, based on whether they survived or not.
+Hint: Be careful about the two groups here: survived or not and passenger class.
+
+```{r}
+df_titanic %>%
+  group_by(survived, pclass) %>%
+  summarize(fare_by_survival = mean(fare, na.rm = TRUE), min_price = min(fare, na.rm = TRUE), max_price = max(fare, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+#### Part 9: Visualizations
+
+**Q&A**: Create a scatter plot that shows the relationship between age and median fare by age group, and
+fit a smoothed curve on it (no need to set any parameters, just use the defaults).
+
+```{r}
+p_age_avg_fare <-
+  df_titanic %>%
+  group_by(age) %>%
+  summarize(avg_fare = mean(fare)) %>%
+  ungroup() %>%
+  ggplot(aes(x = age, y = avg_fare)) +
+  geom_point() +
+  geom_smooth()
+
+plotly::ggplotly(p_age_avg_fare)
+```
+
+**Part 9 Q1**: Create a box-plot showing the distribution of price (fare) across genders (sex), and color it based on whether a passenger survived or not.
+Hint 1: You will insert color into the aesthetics of the box plot after wrapping "survived" by the as.factor() function.
+Hint 2: You don't need group_by() or summarize() here.
+ 
+```{r}
+df_titanic %>%
+  ggplot(aes(x = fare, y = sex, color = as.factor(survived))) +
+  geom_boxplot()
+```
+
+**Part 9 Q2**: Group by the dataset by both passenger gender (sex) and class (pclass) and then compute the proportion of passengers in each group who survived (Hint: You can sum(survived) and then divide by the n() function for the proportions). Then, create an animated bar chart that cycles through fare classes and shows the proportion of surviving males and females in each class.
+Hint 1: You will need group_by() and summarize() before ggplot() here.
+Hint 2: For the animated bar chart, pipe your ggplot() into geom_col() first and then to transition_states() as in Lab Zero.
+ 
+```{r}
+plot_fare_survive_animated <-
+  df_titanic %>%
+  group_by(sex, pclass) %>%
+  summarize(survival_rate = sum(survived) / n()) %>%
+  ungroup() %>%
+  ggplot(aes(x = sex, y = survival_rate, color = "pclass")) +
+  geom_col() +
+  gganimate::transition_states(pclass, transition_length = 1, state_length = 2) +
+  labs(
+    title = "Class {closest_state} Passengers: Survival Rate by Sex"
+  )
+plot_fare_survive_animated
+```
+
+#### Bonus Part 10: Combining functions [Optional but very informative and entertaining]
+
+**Q&A**: For the survived passengers who were on a first class ticket, calculate the average age and price (fare) for each gender (sex).
+
+```{r}
+df_titanic %>%
+  filter(survived == 1 & pclass == 1) %>%
+  group_by(sex) %>%
+  summarize(avg_age = mean(age, na.rm = TRUE), avg_fare = mean(fare, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+**Part 10 Q1**: After excluding the individual passengers (those who travel solo), you want to calculate
+(i) the total cost for each party (based on whether they are on the same ticket),
+(ii) the number of passengers in each party, and
+(iii) how many of the passengers in each party survived.
+
+Then,
+(i) keep only the ticket number and the three variables you calculated,
+(ii) sort by the total cost descending, and
+(iii) remove the repetitions in the data frame.
+
+Hint for (iii): In the last line, use the distinct() function with ".keep_all = TRUE" parameter to display the details for each unique ticket.
+ 
+```{r}
+df_titanic %>%
+  group_by(ticket) %>%
+  mutate(people_on_ticket = n()) %>%
+  filter(people_on_ticket > 1) %>%
+  summarise(total_fare = sum(fare), party_number = n(), survivors = sum(survived)) %>%
+  select(ticket, total_fare, party_number, survivors) %>%
+  arrange(desc(total_fare)) %>%
+  distinct(.keep_all = TRUE) %>%
+  ungroup()
+```
