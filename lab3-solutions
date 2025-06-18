@@ -1,0 +1,245 @@
+---
+title: "Lab III Code"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE, results = 'hide', eval = FALSE)
+
+```
+
+***
+
+```{r}
+library("tidyverse")
+library("tidymodels")
+library("tidylog")
+
+```
+
+
+```{r}
+dff <- read_csv("data/framingham-heart.csv")
+
+str(dff)
+```
+
+***
+
+### Preprocessing
+
+```{r}
+dff <-
+  dff %>%
+  recipe(TenYearCHD ~ .) %>%
+  step_mutate_at(gender, education, currentSmoker, BPMeds, prevalentStroke, prevalentHyp, diabetes, fn = factor) %>%
+  prep() %>%
+  bake(dff)
+
+str(dff)
+```
+
+***
+
+### Question 3
+
+```{r}
+# Split the data into train and test
+
+set.seed(123)
+
+dff_split <- initial_split(dff)
+dff_train <- training(dff_split)
+dff_test <- testing(dff_split)
+```
+
+
+```{r}
+# Distribution of men and women
+
+dff_train %>%
+  group_by(gender) %>%
+  tally() %>%
+  mutate(pct = 100 * n / sum(n))
+
+# Distribution of Age
+dff_train %>%
+  group_by(ageGroup = cut_interval(age, length = 10)) %>%
+  tally() %>%
+  mutate(pct = 100 * n / sum(n))
+
+# Distribution of men and women
+dff_test %>%
+  group_by(gender) %>%
+  tally() %>%
+  mutate(pct = 100 * n / sum(n))
+
+# Distribution of Age
+dff_test %>%
+  group_by(ageGroup = cut_interval(age, length = 10)) %>%
+  tally() %>%
+  mutate(pct = 100 * n / sum(n))
+
+
+# Distribution of age split by gender
+age_plot <- ggplot(aes(x = age, fill = gender), data = dff_train) +
+  geom_histogram(color = "black")
+
+age_plot
+# plotly::ggplotly(age_plot)
+```
+
+***
+
+### Question 5
+
+```{r}
+results_lpm <-
+  predict(fit_lpm, dff_test, type = "raw") %>%
+  bind_cols(dff_test, predictedProbability = .) %>%
+  mutate(predictedClass = ifelse(predictedProbability > 0.5, 1, 0))
+# The last line converts predicts probabilities into classes
+```
+
+```{r}
+results_lpm
+```
+
+
+***
+***
+### Following is a walkthrough of how we have been modeling data
+
+#### Step 1
+```{r}
+# Step 1 - Building a linear regression method object
+
+model_lm <-
+  linear_reg() %>%
+  set_engine("lm")
+
+```
+
+As you see, the first line created a Linear Probability method object as an output.
+
+#### Step 2
+```{r}
+# Step 2 - Estimating (fitting) a linear probability model
+
+fit_lpm <-
+  model_lm %>%
+  fit(TenYearCHD ~ . -currentSmoker, data = dff_train)
+
+```
+
+The output now is a model with the data fed into it and estimations are made.
+
+#### Step 3
+```{r}
+# Step 3 - Making predictions using the model
+
+predicted_probs_lpm  <- predict(fit_lpm, new_data = dff_test, type='raw')
+
+```
+
+type ="raw" tells the predict function that we want raw output of the regression function (a+bx1+cx2...).
+
+The output of Step 3 is a list of predicted probabilities.
+
+#### Step 4
+
+```{r}
+# Step 4 -
+# a) Adding the predicted probabilities to test data as a column called predictedProbability
+# b) Creating a new column/variable called predictedClass to classify using the predicted probabilities
+
+results_lpm <-
+  predicted_probs_lpm %>%
+  bind_cols(dff_test, predictedProbability = .) %>%
+  mutate(predictedClass = ifelse(predictedProbability > 0.5, 1, 0))
+
+```
+
+bind_cols() function literally bind columns together (columns in the testing data and predicted probabilities column).
+
+The output of this step would now be a dataframe given we have just added a new column to the test dataframe. This new dataframe is then stored as results_lpm.
+  - You can run results_lpm or click on it in the Environment to see the contents of this final dataframe.
+  
+***
+***
+
+### Question 5 Cont'd
+
+```{r}
+# Confusion matrix
+
+results_lpm %>% 
+  mutate(TenYearCHD = as.factor(TenYearCHD), predictedClass = as.factor(predictedClass)) %>% 
+  conf_mat(truth = TenYearCHD, estimate = predictedClass)
+```
+
+***
+
+### Question 7
+
+```{r}
+results_log <-
+  predict(fit_log, dff_test, type = "prob") %>%
+  pluck(2) %>%
+  bind_cols(dff_test, predictedProbability = .) %>%
+  mutate(predictedClass = ifelse(predictedProbability > 0.5, 1, 0))
+
+results_log
+```
+
+
+```{r}
+# Alternative method assuming "0.5" threshold by default for classification
+results_log_direct <-
+  predict(fit_log, dff_test, type = "class") %>%
+  pluck(1) %>%
+  bind_cols(dff_test, predictedClass = .)
+
+results_log_direct
+```
+
+
+```{r}
+# Confusion matrix using results_log
+
+conf_mat_from_log <- 
+  results_log %>% 
+  mutate(predictedClass = as.factor(predictedClass)) %>% # Not needed: TenYearCHD = as.factor(TenYearCHD)
+  conf_mat(truth = TenYearCHD, estimate = predictedClass)
+
+conf_mat_from_log
+```
+
+```{r}
+# Confusion matrix using results_log_direct
+
+results_log_direct %>% 
+  conf_mat(truth = TenYearCHD, estimate = predictedClass)
+```
+
+
+***
+
+### Question 9
+
+```{r}
+conf_mat_from_log %>% 
+  summary(event_level = "second")
+```
+
+***
