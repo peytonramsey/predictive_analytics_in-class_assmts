@@ -1,0 +1,621 @@
+---
+title: "Lab II Code"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+#knitr::opts_chunk$set(echo = TRUE, results = 'hide', eval = FALSE)
+
+```
+
+### Reminders you can delete if you don't want them in your code or report:
+
+#### Shortcuts:
+
+- Use **CTRL ALT I** to add a new code chunk
+  - Use a new code chunk to answer a new question (or subquestion)
+  
+- Use **ALT -** for the assignment operator <-
+
+- Use **CTRL SHIFT M** for the pipe function %>%
+
+- Check out the dropdown menu at top right next to "Run" by clicking on the down arrow
+  - It will show you the shortcuts to **run a line, run current chunk, all chunks above, and all chunks**
+
+#### Good advice on function:
+
+- Use **read_csv** (NOT read.csv) to load the data
+  
+- When **%>%** function cannot be found, load the tidyverse library again
+
+- Do not load the libraries the instructions ask you **not** to load  
+
+  - **To load packages**: Run library("package_name")
+  - **Use without loading**: Specify package as **package_name::function_name**
+  - **To install packages:** Run install.packages("package_name") or use RStudio menu
+    - You might want to install packages for your project. Otherwise, you are covered.
+
+- R/RStudio is **case sensitive**, so lower vs. Upper case are different
+
+#### Good advice on style:
+
+- We are following the **Tidyverse Style Guide** (https://style.tidyverse.org/), **so does Google** (https://google.github.io/styleguide/Rguide.html)
+
+- Name objects and columns/variables by...
+  - either using an underscore such as **weekly_sales (preferable)**
+  - or starting lowercase and using uppercase for each word such as **weeklySales (still readable)**
+  
+- You will likely see a mix of the two styles in the labs/assignments
+  - Recently, I use **the former style for object names and the latter for column/variable names**
+  
+- There is much more to style: Keep up with the spaces, correct indentations, etc.
+  - When in doubt, visit **style.tidyverse.org** and/or **use the Styler package**
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions (& subquestions). You can delete this comment if you like.
+
+***
+
+# **Lab II**
+
+```{r}
+# Load the required libraries
+
+library(tidyverse)
+library(tidymodels)
+library(tidylog)
+
+```
+
+
+```{r}
+# Reading the Walmart dataset
+
+dfw <- read_csv("data/walmart.csv")
+
+```
+
+
+```{r}
+#Descriptive stats
+#head(dfw)
+#str(dfw)
+#glimpse(dfw)
+skimr::skim(dfw)
+
+```
+
+***
+
+### Question 1
+
+```{r}
+# Regress CPI on Weekly_Sales
+
+# Create a linear model. You know you can check ?linear_reg
+# Notice that the object we create here, linear_model, is reusable!
+
+linear_model <- 
+  linear_reg() %>% 
+  set_engine("lm")
+
+# Fit the linear model with Weekly_Sales as DV and CPI as IV
+
+fit_cpi <- 
+  linear_model %>% 
+  fit(Weekly_Sales ~ CPI, data = dfw)
+ 
+summary(fit_cpi$fit)
+
+```
+
+
+```{r}
+# Get the coefficients in a nice table
+
+tidy(fit_cpi)
+
+```
+
+
+```{r}
+# Get the rest of the model fit details
+
+glance(fit_cpi$fit)
+
+```
+
+
+***
+
+### Question 2
+
+```{r}
+# Creating an animated plot for Stores 11-15
+
+dfw %>% 
+    filter(Store == 10) %>% 
+    ggplot(aes(x = CPI, y = Weekly_Sales)) + 
+    geom_point() + 
+    geom_smooth(method = lm) +
+    labs(title = 'Weekly Sales vs. CPI for Store 10', x = 'Consumer Price Index', y = 'Weekly Sales (USD)') +
+    theme_minimal()
+
+```
+
+
+```{r}
+# Creating an animated plot for Stores 11-15
+
+dfw %>% 
+    filter(Store %in% c(11:15)) %>% 
+    ggplot(aes(x = CPI, y = Weekly_Sales)) + 
+    geom_point() + 
+    geom_smooth(method = lm) +
+    labs(title = 'Weekly Sales vs. CPI for Store {closest_state}', x = 'Consumer Price Index', y = 'Weekly Sales (USD)') +
+    theme_minimal() + 
+    gganimate::transition_states(Store, transition_length = 1, state_length = 2) +
+    gganimate::view_follow()
+
+```
+
+
+```{r}
+# How to run individual regressions by group for each group's data and extract coefficients:
+# Data: Walmart sales
+# Group: Individual store
+
+# (Note that this chunk is beyond the scope of this course in terms of the advanced coding involved)
+# (Having said that, you will be able to advance easily with the direction this course will provide)
+
+dfw %>%
+  group_by(Store) %>%
+  group_modify(~ tidy(lm(Weekly_Sales ~ ., data = .x))) %>%
+  filter(term == "CPI")
+
+```
+
+
+***
+
+### Question 3
+
+```{r}
+# Applying a filter for 2012 and plotting CPI against Weekly_Sales
+# You could also use the following filter: Date >= '2012-01-01' & Date <= '2012-12-31'
+
+plot <- dfw %>%
+	      	filter(lubridate::year(Date) == 2012) %>%
+	          ggplot(aes(x=CPI, y = Weekly_Sales)) +
+	          geom_point() +
+ 	        	geom_smooth(method=lm)
+    
+plotly::ggplotly(plot)
+
+```
+
+***
+
+### Question 4
+
+```{r}
+# Plotting the sales of Store 10 over a period of a year
+# You could also use the following filter: Date>='2012-01-01' & Date <= '2012-12-31'
+
+plot <- dfw %>%
+      		filter(Store==10, lubridate::year(Date)==2012) %>%
+      	    ggplot(aes(x=CPI, y = Weekly_Sales)) +
+      	    geom_point() +
+            geom_smooth(method=lm)
+
+plotly::ggplotly(plot)
+
+```
+
+***
+
+### Question 5
+
+```{r}
+# Regressing Weekly_Sales on CPI and Size as our independent variable
+
+fit_cpi_size <- 
+  linear_model %>% 
+  fit(Weekly_Sales~ CPI + Size, data = dfw)
+
+summary(fit_cpi_size$fit)
+
+```
+
+
+```{r}
+# Using anova() to check if adding Size leads to a statistically significant improvement
+# (You could have compared the Adjusted R-squared values in two models to do the same)
+
+anova(fit_cpi$fit, fit_cpi_size$fit)
+
+```
+
+***
+
+### Question 6
+
+```{r}
+# Comparing the outputs of two models. You can also create a comparison table using tidy()
+
+summary(fit_cpi$fit)
+summary(fit_cpi_size$fit)
+
+tidy(fit_cpi$fit)
+tidy(fit_cpi_size$fit)
+
+```
+
+***
+
+### Question 7
+
+```{r}
+# Regressing Weekly_Sales using all variables except Store and Date
+
+fit_full <- 
+  linear_model %>% 
+  fit(Weekly_Sales ~ . - Store - Date, data = dfw)
+
+summary(fit_full$fit)
+
+```
+
+
+```{r}
+# Comparing the model built in Question 5 with model built in Question 7
+
+anova(fit_cpi_size$fit, fit_full$fit)
+
+```
+
+***
+
+### Question 8
+
+```{r}
+# Regressing Weekly_Sales using all variables except Store and Date and including the interaction
+
+fit_full_int <- 
+  linear_model %>% 
+  fit(Weekly_Sales ~ . - Store - Date + IsHoliday * Temperature, data = dfw)
+
+summary(fit_full_int$fit)
+
+```
+
+
+```{r}
+# Regressing Weekly_Sales using all variables except Store and Date and including Temperature^2
+
+fit_full_temp <- 
+  linear_model %>% 
+  fit(Weekly_Sales ~ . - Store - Date + I(Temperature^2), data = dfw)
+
+summary(fit_full_temp$fit)
+
+```
+
+
+```{r}
+## Plotting the relationship between Temperature^2 and Weekly Sales 
+
+dfw %>%
+  ggplot(aes(x = Temperature, y = Weekly_Sales)) + 
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2))
+
+```
+
+***
+
+### Question 9
+
+#### Part a and b
+
+```{r}
+# Setting the seed
+
+set.seed(3.14159)
+
+# Create a training dataset by random sampling 75% of the data
+# and create a test set with the remaining 25%
+
+dfw_split <- initial_split(dfw)
+dfw_train <- training(dfw_split)
+dfw_test <- testing(dfw_split)
+
+```
+
+
+```{r}
+?initial_split
+```
+
+
+#### Part c
+
+```{r}
+# Fitting the model only to the training data set
+
+fit_org <-
+  linear_model %>% 
+  fit(Weekly_Sales~ . - Store - Date + I(Temperature^2), data = dfw_train)
+
+summary(fit_org$fit)
+
+```
+
+
+```{r}
+# Using tidy() to orgnize your outputs
+
+tidy(fit_org)
+
+```
+
+#### Part d
+
+```{r}
+# Creating a new dataframe with predicted value
+
+results_org <-
+  predict(fit_org, new_data = dfw_test) %>% 
+  bind_cols(dfw_test) %>% 
+  rename(Predicted_Sales = .pred)
+
+results_org
+
+```
+
+#### Part e
+
+```{r}
+# Defining the metrics we be calculating using the metric_set()
+
+perf_metrics <- metric_set(rmse, mae) # See your options using ?metric_set
+
+```
+
+
+```{r}
+# Calculating the performance of fit
+
+perf_metrics(results_org, truth =  Weekly_Sales, estimate = Predicted_Sales)
+
+```
+
+
+#### Part f
+
+```{r}
+#Building the model without I(Temperature^2) variable using only the training data set
+
+fit_org_nosq <-
+  linear_model %>% 
+  fit(Weekly_Sales ~ . - Store - Date, data = dfw_train)
+
+summary(fit_org_nosq$fit)
+
+#Comparing the models
+
+anova(fit_org$fit, fit_org_nosq$fit)
+
+#Creating a new dataframe results_org_nosq with predictions
+
+results_org_nosq <-
+  predict(fit_org_nosq, new_data = dfw_test) %>% 
+  bind_cols(dfw_test) %>% 
+  rename(Predicted_Sales = .pred)
+
+#Calculating performance metrics
+
+perf_metrics(results_org_nosq, truth =  Weekly_Sales, estimate = Predicted_Sales)
+
+```
+
+***
+
+### Question 10a-i
+
+```{r}
+#Creating a new variable called log_sales
+
+dfwlog <-
+  dfw %>%
+  mutate(log_sales = log(Weekly_Sales))
+
+```
+
+
+```{r}
+#Setting the seed
+
+set.seed(3.14159)
+
+# Create a training dataset by random sampling 75% of the data
+# and create a test set with the remaining 25%
+
+dfwlog_split <- initial_split(dfwlog)
+dfwlog_train <- training(dfwlog_split)
+dfwlog_test <- testing(dfwlog_split)
+
+```
+
+
+```{r}
+#Building the model using log_sales variable as Dependent variable using only on the training data set
+
+fit_log <-
+  linear_model %>% 
+  fit(log_sales ~ . - Store - Date - Weekly_Sales, data=dfwlog_train) #-Weekly_Sales
+
+summary(fit_log$fit)
+
+#Creating a new dataframe results_log with predicted values
+
+results_log <-
+  predict(fit_log, new_data = dfw_test) %>% 
+  bind_cols(dfwlog_test) %>% 
+  rename(Predicted_Sales = .pred)
+
+
+#Calculating performance metrics
+
+perf_metrics(results_log, truth = log_sales, estimate = Predicted_Sales)
+
+```
+
+
+### Question 10a-ii
+
+```{r}
+# Essential diagnostics for fit_org_nosq
+
+plot(fit_org_nosq$fit)
+
+```
+
+
+```{r}
+# Essential diagnostics for fit_log
+
+plot(fit_log$fit)
+
+```
+
+
+```{r}
+# Essential diagnostics for fit_org_nosq in a breeze
+
+performance::check_model(fit_org_nosq$fit)
+
+```
+
+
+```{r}
+# Essential diagnostics for fit_log in a breeze
+# (Notice how nicely the normality assumption is fulfilled among other improvements)
+
+performance::check_model(fit_log$fit)
+
+```
+
+
+```{r}
+# Check for multicollinearity for fit_org_nosq
+
+performance::check_collinearity(fit_org_nosq$fit)
+
+```
+
+
+```{r}
+# Check for multicollinearity for fit_log
+# (Note that logging is just a transformation hence no reason for a considerable change in correlations)
+
+performance::check_collinearity(fit_log$fit)
+
+```
+
+
+```{r}
+# This was not asked but also see how VIF values are alarming red when Temperature^2 was in the model
+# (This is not surprising or even worrying because we expect and know Temp and Temp^2 to be correlated)
+
+performance::check_collinearity(fit_org$fit)
+
+```
+
+***
+
+### Question 10b [OPTIONAL]
+
+```{r}
+# Creating a new variable called sales_perSqft
+
+dfwsqft <-
+  dfw %>%
+  mutate(sales_perSqft = Weekly_Sales / Size)
+
+```
+
+
+```{r}
+# Setting the seed
+
+set.seed(3.14159)
+
+# Create a training dataset by random sampling 75% of the data
+# and create a test set with the remaining 25%
+
+dfwsqft_split <- initial_split(dfwsqft)
+dfwsqft_train <- training(dfwsqft_split)
+dfwsqft_test <- testing(dfwsqft_split)
+
+```
+
+
+```{r}
+# Building the model using sales_perSqft variable as Dependent variable using only on the training data set
+
+fit_sales_sqft <-
+  linear_model %>% 
+  fit(sales_perSqft ~ . - Store - Date - Weekly_Sales - Size, data = dfwsqft_train)
+
+summary(fit_sales_sqft$fit)
+
+
+# Creating a new dataframe resultsOrg with the predictions
+
+results_sales_sqft <-
+  predict(fit_sales_sqft, new_data = dfw_test) %>% 
+  bind_cols(dfwsqft_test) %>% 
+  rename(Predicted_Sales = .pred)
+
+# Calculating performance metrics
+
+perf_metrics(results_sales_sqft, truth = sales_perSqft , estimate = Predicted_Sales)
+
+```
+
+
+### Question 10b with Size
+
+```{r}
+# Building the model using sales_perSqft variable as Dependent variable using only on the training data set
+
+fit_sales_sqft <-
+  linear_model %>% 
+  fit(sales_perSqft ~ . - Store - Date - Weekly_Sales, data = dfwsqft_train) # -Size maybe?
+
+summary(fit_sales_sqft$fit)
+
+
+# Creating a new dataframe resultsOrg with the predictions
+
+results_sales_sqft <-
+  predict(fit_sales_sqft, new_data = dfw_test) %>% 
+  bind_cols(dfwsqft_test) %>% 
+  rename(Predicted_Sales = .pred)
+
+# Calculating performance metrics
+
+perf_metrics(results_sales_sqft, truth = sales_perSqft , estimate = Predicted_Sales)
+
+```
