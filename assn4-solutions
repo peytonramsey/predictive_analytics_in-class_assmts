@@ -1,0 +1,655 @@
+---
+title: "Assignment 4 Template"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+### Reminders you can delete if you don't want them in your code or report:
+
+#### Shortcuts:
+
+- Use **CTRL ALT I** to add a new code chunk
+  - Use a new code chunk to answer a new question (or subquestion)
+  
+- Use **ALT -** for the assignment operator <-
+
+- Use **CTRL SHIFT M** for the pipe function %>%
+
+- Check out the dropdown menu at top right next to "Run" by clicking on the down arrow
+  - It will show you the shortcuts to **run a line, run current chunk, all chunks above, and all chunks**
+
+#### Good advice on function:
+
+- Use **read_csv** (NOT read.csv) to load the data
+  
+- When **%>%** function cannot be found, load the tidyverse library again
+
+- Do not load the libraries the instructions ask you **not** to load  
+
+  - **To load packages**: Run library("package_name")
+  - **Use without loading**: Specify package as **package_name::function_name**
+  - **To install packages:** Run install.packages("package_name") or use RStudio menu
+    - You might want to install packages for your project. Otherwise, you are covered.
+
+- R/RStudio is **case sensitive**, so lower vs. Upper case are different
+
+#### Good advice on style:
+
+- We are following the **Tidyverse Style Guide** (https://style.tidyverse.org/), **so does Google** (https://google.github.io/styleguide/Rguide.html)
+
+- Name objects and columns/variables by...
+  - either using an underscore such as **weekly_sales (preferable)**
+  - or starting lowercase and using uppercase for each word such as **weeklySales (still readable)**
+  
+- You will likely see a mix of the two styles in the labs/assignments
+  - Recently, I use **the former style for object names and the latter for column/variable names**
+  
+- There is much more to style: Keep up with the spaces, correct indentations, etc.
+  - When in doubt, visit **style.tidyverse.org** and/or **use the Styler package**
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions (& subquestions). You can delete this comment if you like.
+
+***
+
+```{r}
+# Load the required libraries
+
+library("tidyverse")
+library("tidymodels")
+library("tidylog")
+```
+
+***
+
+### Question 1 - Data preparation
+
+#### Part a
+```{r}
+# Read and inspect the data
+
+dfc <- read_csv("data/carvana.csv") %>%
+  mutate(BadBuy = as.factor(BadBuy))
+
+skimr::skim(dfc)
+
+# Before you start... Ctrl + Shift + C comments/uncomments a block
+# Just select the code I commented above (so you don't run into errors)
+# and CTRL + SHIFT + C to uncomment before you start using it. Practice this!
+```
+
+
+#### Part b
+```{r}
+# Feature engineering -Create a new variable using mutate and ifelse
+
+dfc <-
+  dfc %>%
+  mutate(Discount = ifelse(MMRAretail > 0 & MMRAauction > 0,
+    MMRAretail - MMRAauction,
+    NA
+  ))
+dfc
+```
+
+
+#### Part c
+```{r}
+# Split the data into train and test (dfc_train and dfc_test)
+
+set.seed(314159)
+
+dfc_split <- initial_split(dfc, prop = 0.75)
+dfc_train <- training(dfc_split)
+dfc_test <- testing(dfc_split)
+```
+
+***
+
+### Question 2 - Exploratory analysis of the training data set
+
+#### Part a
+```{r}
+# Auction price plot:
+plot_auction <-
+  dfc_train %>%
+  ggplot(aes(x = as.factor(BadBuy), y = MMRAauction)) +
+  geom_boxplot()
+
+plot_auction
+
+# Age plot:
+
+plot_age <-
+  dfc_train %>%
+  ggplot(aes(x = as.factor(BadBuy), y = Age)) +
+  geom_boxplot()
+
+plot_age
+
+# Odometer plot:
+
+plot_odo <-
+  dfc_train %>%
+  ggplot(aes(x = as.factor(BadBuy), y = Odo)) +
+  geom_boxplot()
+
+plot_odo
+```
+
+
+#### Part b
+```{r}
+# Acceptable but not preferable quick-and-dirty solution with two separate tables:
+
+# dfc_train %>%
+#   filter(...) %>%
+#   group_by(...) %>%
+#   tally() %>%
+#   mutate(...) %>%
+#   arrange(...)
+#
+#
+# dfc_train %>%
+#   filter(...) %>%
+#   group_by(...) %>%
+#   tally() %>%
+#   mutate(...) %>%
+#   arrange(...)
+
+
+# There is a much better solution in a single table using group_by, summarize, mutate, and arrange:
+# Not strictly required but you can do it! Or, come up with your own even better solution, why not?
+
+size_summary <-
+  dfc_train %>%
+  group_by(Size, BadBuy) %>%
+  summarize(count = n(), .groups = "drop") %>%
+  arrange(Size, BadBuy) %>%
+  group_by(Size) %>%
+  mutate(pct = 100 * count / sum(count)) %>%
+  filter(BadBuy == 1) %>%
+  arrange(desc(pct))
+size_summary
+```
+
+***
+
+### Question 3 - Logistic regression
+
+```{r}
+# Building the logistic regression model (Q13 of Lab III and Session 4 slides has everything you need)
+
+# Create a recipe:
+
+lemons_recipe <-
+  recipe(BadBuy ~ Auction + Age + Make + Color + WheelType + Odo + Size + Discount, data = dfc_train)
+
+# No need for any preprocessing this time.
+# You just need to define the functional form (variables) and data=dfc_train
+# In other words, no step functions will be needed in the making of this model
+
+# In a recipe, you need to list the variables explicitly: Auction + Age + Make + Color + WheelType + Odo + Size + ...
+# In other words, you can't use the shortcut to include all variables and remove some, sorry
+
+
+
+# Create a logistic method object:
+
+lemons_log_method <-
+  logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+# Create a workflow:
+
+lemons_workflow <-
+  workflow() %>%
+  add_model(lemons_log_method) %>%
+  add_recipe(lemons_recipe)
+
+# Fit the model:
+
+fit_log <-
+  fit(lemons_workflow, data = dfc_train)
+
+# Get the output:
+
+tidy(fit_log)
+# (No need for the weird $fit extension anymore!)
+
+glance(fit_log)
+# (No need for the weird $fit extension anymore!)
+```
+
+
+#### Part a, b, c
+```{r}
+# Interpreting the coefficients in a fancier way (Ready to use!)
+
+tidy(fit_log) %>%
+  mutate(exp_coef = exp(estimate)) %>%
+  select(term, exp_coef) %>%
+  filter(term %in% c("Age", "Odo", "SizeVAN"))
+```
+
+
+#### Part d
+```{r}
+# Generating predicted probabilities AND doing the classification
+# (You created a results_log table with probabilities and classes in Lab III)
+# You will need the predicted probabilities for the ROC and AUC
+# You will need the predicted classes for the confusion matrix
+# So start with type = 'prob' instead of type = 'class'
+# and use ifelse to do the classification yourself
+# (Make sure to convert your Predicted_Class into a factor)
+
+results_log <-
+  predict(fit_log, new_data = dfc_test, type = "prob") %>%
+  bind_cols(dfc_test) %>%
+  rename(Predicted_Probability = .pred_1)
+
+results_log <-
+  results_log %>%
+  mutate(Predicted_Class = as.factor(ifelse(Predicted_Probability >= 0.5, 1, 0)))
+```
+
+
+```{r}
+# Creating the confusion matrix (You created one in Lab III)
+
+conf_matrix <- conf_mat(results_log, truth = BadBuy, estimate = Predicted_Class)
+conf_matrix
+
+conf_mat_summary <- summary(conf_matrix, event_level = "second")
+conf_mat_summary
+```
+
+
+#### Part e
+```{r}
+# Calculating the performance metrics using the confusion matrix (You calculated in Lab III)
+
+
+
+# I see a great learning opportunity here
+# Use the code below to run the same logistic regressing using a 10-fold cross validation (CV)
+# Compare the accuracy from the Cdata:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAbElEQVR4Xs2RQQrAMAgEfZgf7W9LAguybljJpR3wEse5JOL3ZObDb4x1loDhHbBOFU6i2Ddnw2KNiXcdAXygJlwE8OFVBHDgKrLgSInN4WMe9iXiqIVsTMjH7z/GhNTEibOxQswcYIWYOR/zAjBJfiXh3jZ6AAAAAElFTkSuQmCCV with the accuracy you calculated above in the test set
+# As we discussed last week, see how well cross-validation approximates the test accuracy
+# Remember, the cross-validation process does not see the test data at all. Amazing, ha?
+
+fit_log_cv <- fit_resamples(lemons_workflow, vfold_cv(dfc_train, v = 10))
+fit_log_cv %>% collect_metrics()
+```
+
+
+#### Part f
+```{r}
+# Calculating predicted probability for the first car provided (You did the same in Assignment 3)
+
+# first_car <- tibble(Auction = ..., Age = ..., ...)
+
+first_car <-
+  tibble(
+    Auction = "ADESA",
+    Age = 10,
+    Make = "HONDA",
+    Color = "SILVER",
+    WheelType = "Covers",
+    Odo = 75000,
+    Size = "LARGE",
+    MMRAauction = 8000,
+    MMRAretail = 12000
+  ) %>%
+  mutate(Discount = ifelse(MMRAretail > 0 & MMRAauction > 0,
+    MMRAretail - MMRAauction,
+    NA
+  )) %>%
+  select(-MMRAauction, -MMRAretail)
+
+first_car_prediction <- predict(fit_log, new_data = first_car)
+
+first_car_prediction <- first_car_prediction %>%
+  rename(first_car_pred = .pred_class)
+
+first_car_prediction
+```
+
+
+```{r}
+# Calculating predicted probability for the second car provided (You did the same in Assignment 3)
+
+second_car <-
+  tibble(
+    Auction = "ADESA",
+    Age = 10,
+    Make = "HONDA",
+    Color = "SILVER",
+    WheelType = "Covers",
+    Odo = 50000,
+    Size = "LARGE",
+    MMRAauction = 8000,
+    MMRAretail = 12000
+  ) %>%
+  mutate(Discount = ifelse(MMRAretail > 0 & MMRAauction > 0,
+    MMRAretail - MMRAauction,
+    NA
+  )) %>%
+  select(-MMRAauction, -MMRAretail)
+
+
+second_car_prediction <- predict(fit_log, new_data = second_car)
+
+second_car_prediction <- second_car_prediction %>%
+  rename(second_car_pred = .pred_class)
+
+second_car_prediction
+```
+
+
+#### Part g
+```{r}
+# ROC curve (You created one in Lab III)
+
+results_log %>%
+  roc_curve(
+    truth = BadBuy,
+    estimate = Predicted_Probability, event_level = "second"
+  ) %>%
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) +
+  geom_path() +
+  geom_abline(lty = 3) +
+  coord_equal() +
+  theme_bw() +
+  labs(
+    title = "ROC Curve for Carvana Logistic Regression Model",
+    x = "False Positive Rate (1 - Specificity)",
+    y = "True Positive Rate (Sensitivity)"
+  )
+```
+
+
+```{r}
+# AUC value (You calculated one in Lab III)
+
+roc_auc(results_log,
+  truth = BadBuy,
+  Predicted_Probability, event_level = "second"
+)
+```
+
+***
+
+If you keep up with the proper titling of the questions and subquestions, it will help you organize better.
+
+### Question 4 - KNN model
+#Q4 part A - build new pred. model to find best K for highest accuracy
+```{r}
+lemons_recipe_knn <-
+  recipe(BadBuy ~ Age + Odo, data = dfc_train) %>%
+  step_normalize(all_numeric(), -BadBuy)
+
+lemons_knn_method <-
+  nearest_neighbor(neighbors = tune("neighbors")) %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+
+lemons_knn_workflow <-
+  workflow() %>%
+  add_model(lemons_knn_method) %>%
+  add_recipe(lemons_recipe_knn)
+
+k_grid <- tibble(neighbors = seq(1, 15, by = 2))
+
+set.seed(314159)
+lemon_folds <- vfold_cv(dfc_train, v = 5)
+
+knn_tuning <-
+  lemons_knn_workflow %>%
+  tune_grid(
+    resamples = lemon_folds,
+    grid = k_grid
+  )
+
+best_k <-
+  knn_tuning %>%
+  select_best(metric = "accuracy")
+best_k
+```
+
+
+#Q4 part B
+```{r}
+final_knn_workflow <-
+  lemons_knn_workflow %>%
+  finalize_workflow(best_k)
+
+fit_knn <-
+  fit(final_knn_workflow, data = dfc_train)
+
+results_knn <-
+  bind_cols(
+    dfc_test %>% select(BadBuy),
+    predict(fit_knn, new_data = dfc_test),
+    predict(fit_knn, new_data = dfc_test, type = "prob")
+  ) %>%
+  rename(
+    Predicted_Class = .pred_class,
+    Predicted_Probability = .pred_1
+  )
+
+knn_conf_matrix <-
+  conf_mat(
+    data = results_knn,
+    truth = BadBuy,
+    estimate = Predicted_Class
+  )
+knn_conf_matrix
+```
+
+#Q4 part C
+```{r}
+knn_summary <- summary(knn_conf_matrix, event_level = "second")
+knn_summary
+```
+
+#Q4 part D
+```{r}
+lemons_log_simple_method <-
+  logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+lemons_log_simple_workflow <-
+  workflow() %>%
+  add_model(lemons_log_simple_method) %>%
+  add_recipe(lemons_recipe_knn)
+
+fit_log_simple <-
+  fit(lemons_log_simple_workflow, data = dfc_train)
+
+log_simple_predictions <-
+  predict(fit_log_simple, new_data = dfc_test) %>%
+  bind_cols(dfc_test %>% select(BadBuy))
+
+log_simple_conf_mat <-
+  conf_mat(log_simple_predictions,
+    truth = BadBuy,
+    estimate = .pred_class
+  )
+
+log_simple_summary <- summary(log_simple_conf_mat, event_level = "second")
+
+bind_rows(
+  knn_summary %>% mutate(model = "KNN"),
+  log_simple_summary %>% mutate(model = "Logistic")
+) %>%
+  select(model, .metric, .estimate) %>%
+  pivot_wider(names_from = model, values_from = .estimate)
+```
+
+#Q4 part E
+```{r}
+knn_prob_predictions <-
+  predict(fit_knn, new_data = dfc_test, type = "prob") %>%
+  bind_cols(dfc_test %>% select(BadBuy)) %>%
+  mutate(model = "KNN")
+
+log_simple_prob_predictions <-
+  predict(fit_log_simple, new_data = dfc_test, type = "prob") %>%
+  bind_cols(dfc_test %>% select(BadBuy)) %>%
+  mutate(model = "Logistic")
+
+results_all <- bind_rows(knn_prob_predictions, log_simple_prob_predictions)
+
+results_all %>%
+  group_by(model) %>%
+  roc_curve(truth = BadBuy, estimate = .pred_1, event_level = "second") %>%
+  ggplot(aes(x = 1 - specificity, y = sensitivity, color = model)) +
+  geom_path() +
+  geom_abline(lty = 3) +
+  coord_equal() +
+  theme_bw() +
+  labs(
+    title = "Comparing logistic model with KNN for Carvana data",
+    x = "False positive rate (1 - Specificity)",
+    y = "True positive rate (Sensitivity)"
+  )
+
+results_all %>%
+  group_by(model) %>%
+  roc_auc(truth = BadBuy, estimate = .pred_1, event_level = "second")
+```
+
+***
+
+### Question 5 - More logistic regression
+
+```{r}
+# I would name each new recipe and model differently to avoid confusion
+# You can reuse the logistic method object without creating it again and again
+
+### Question 5 - More logistic regression
+
+lemons_log_reg <-
+  logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+```
+
+# Model 1: Polynomial Features Model
+```{r}
+
+poly_recipe <- 
+  recipe(BadBuy ~ ., data = dfc_train) %>%
+  step_rm(MMRAauction, MMRAretail) %>%
+  step_mutate(
+    Age_squared = Age^2,
+    Odo_squared = Odo^2
+  )
+
+poly_workflow <- 
+  workflow() %>%
+  add_model(lemons_log_reg) %>%
+  add_recipe(poly_recipe)
+
+fit_poly <- 
+  fit(poly_workflow, data = dfc_train)
+
+```
+
+# Model 2: Interaction Terms Model
+```{r}
+
+interact_recipe <- 
+  recipe(BadBuy ~ ., data = dfc_train) %>%
+  step_rm(MMRAauction, MMRAretail) %>%
+  step_mutate(
+    Age_Odo_Interaction = Age * Odo
+  )
+
+interact_workflow <- 
+  workflow() %>%
+  add_model(lemons_log_reg) %>%
+  add_recipe(interact_recipe)
+
+fit_interact <- 
+  fit(interact_workflow, data = dfc_train)
+
+```
+
+# Model 3: # Model 3: Simple Mileage and Age Model
+```{r}
+
+simple_recipe <- 
+  recipe(BadBuy ~ ., data = dfc_train) %>%
+  step_rm(MMRAauction, MMRAretail) %>%
+  step_mutate(
+    Miles_Per_Year = Odo / (Age + 1)
+  )
+
+simple_workflow <- 
+  workflow() %>%
+  add_model(lemons_log_reg) %>%
+  add_recipe(simple_recipe)
+
+fit_simple <- 
+  fit(simple_workflow, data = dfc_train)
+
+```
+
+# Evaluate all models
+```{r}
+
+pred_poly <- predict(fit_poly, dfc_test, type = "prob") %>%
+  bind_cols(predict(fit_poly, dfc_test)) %>%
+  bind_cols(dfc_test %>% select(BadBuy)) %>%
+  mutate(model = "Polynomial",
+         .pred_1_fixed = 1 - .pred_1)
+
+pred_interact <- predict(fit_interact, dfc_test, type = "prob") %>%
+  bind_cols(predict(fit_interact, dfc_test)) %>%
+  bind_cols(dfc_test %>% select(BadBuy)) %>%
+  mutate(model = "Interaction",
+         .pred_1_fixed = 1 - .pred_1)
+
+pred_simple <- predict(fit_simple, dfc_test, type = "prob") %>%
+  bind_cols(predict(fit_simple, dfc_test)) %>%
+  bind_cols(dfc_test %>% select(BadBuy)) %>%
+  mutate(model = "Miles_Per_Year",
+         .pred_1_fixed = 1 - .pred_1)
+
+all_preds <- 
+  bind_rows(pred_poly, pred_interact, pred_simple)
+
+comparison_table <- 
+  all_preds %>%
+  group_by(model) %>%
+  metrics(truth = BadBuy, estimate = .pred_class, .pred_1_fixed) %>%
+  filter(.metric %in% c("accuracy", "sensitivity", "specificity", "roc_auc")) %>%
+  pivot_wider(names_from = .metric, values_from = .estimate) %>%
+  arrange(desc(roc_auc))
+
+comparison_table
+
+roc_plot <- 
+  all_preds %>% 
+  group_by(model) %>% 
+  roc_curve(truth = BadBuy, .pred_1_fixed) %>%
+  ggplot(aes(x = 1 - specificity, y = sensitivity, color = model)) +
+  geom_path() +
+  geom_abline(lty = 3) +
+  coord_equal() +
+  theme_bw() +
+  labs(title = "Comparing ROC Curves Across Models",
+       x = "False positive rate (1 - Specificity)", 
+       y = "True positive rate (Sensitivity)")
+roc_plot
+
+```
+
