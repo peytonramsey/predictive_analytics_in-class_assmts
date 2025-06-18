@@ -1,0 +1,275 @@
+---
+title: "Assignment 2 Solutions"
+output:
+  html_notebook: default
+  pdf_document:
+    latex_engine: xelatex
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions. You can delete this comment if you like.
+
+Other useful keyboard shortcuts include Alt- for the assignment operator, and Ctrl+Shift+M
+for the pipe operator. You can delete these reminders if you don't want them in your report.
+
+
+```{r}
+
+library("tidyverse")
+library("tidylog")
+library("gapminder")
+
+```
+
+
+```{r}
+#-----Question 1-----
+dfGap <- gapminder
+
+```
+
+
+```{r}
+#-----Question 2-----
+skimr::skim(dfGap)
+
+```
+
+
+```{r}
+#-----Question 3-----
+dfGap %>%
+  filter(year == 2007) %>%
+  arrange(desc(lifeExp))
+
+```
+
+
+```{r}
+#-----Question 4(a, b)-----
+dfGapQ3 <- 
+  dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007) %>%
+  arrange(desc(totalGDP))
+
+dfGapQ3
+
+```
+
+
+```{r}
+#-----Question 4(c)-----
+dfGapQ3 %>%
+  select(country, gdpPercap) %>%
+  arrange(desc(gdpPercap))
+
+```
+
+
+```{r}
+#-----Question 5-----
+dfGapQ3 %>% 
+  group_by(continent) %>%
+  summarize(medianLifeExp = median(lifeExp), medianTotalGDP = median(totalGDP)) %>%
+  ungroup() %>%
+  arrange(desc(medianLifeExp))
+
+```
+
+
+```{r}
+#-----Question 6(a)-----
+dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007) %>%
+  ggplot(aes(x = totalGDP, y = lifeExp)) +
+    geom_point()
+```
+
+
+```{r}
+#-----Question 6(b)-----
+dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007, totalGDP > 1e+12) %>%
+  ggplot(aes(x = totalGDP, y = lifeExp)) +
+    geom_point()
+
+```
+
+
+```{r}
+#-----Question 6(c)-----
+dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007, totalGDP > 1e+12) %>%
+  ggplot(aes(x = totalGDP, y = lifeExp)) +
+    geom_point() +
+    geom_label(aes(label = country))
+```
+
+
+```{r}
+#-----Question 6(d)-----
+dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007, totalGDP > 1e+12) %>%
+  ggplot(aes(x = totalGDP, y = lifeExp)) +
+    geom_point() +
+    ggrepel::geom_label_repel(aes(label = country))
+```
+
+
+```{r}
+#-----Question 6(e)-----
+dfGap %>%
+  mutate(totalGDP = pop * gdpPercap) %>%
+  filter(year == 2007, totalGDP > 1e+12) %>%
+  ggplot(aes(x = totalGDP, y = lifeExp)) +
+    geom_point(aes(color = continent)) +
+    ggrepel::geom_label_repel(aes(label = country))
+```
+
+
+```{r}
+#-----Question 7(a)-----
+dfGap %>%
+  filter(year == 2007) %>%
+  ggplot(aes(x = gdpPercap, y = lifeExp)) +
+    geom_point() +
+    geom_smooth()
+```
+
+
+```{r}
+#-----Question 7(b)-----
+dfGap %>%
+  filter(year == 2007) %>%
+    ggplot(aes(x = gdpPercap, y = lifeExp)) +
+    geom_point(aes(color = continent)) +
+    geom_smooth()
+```
+
+
+```{r}
+#-----Question 7(c)-----
+dfGap %>%
+  filter(continent == 'Europe') %>% 
+  ggplot(aes(x = gdpPercap, y = lifeExp, size = pop)) +
+    geom_point(aes(color = country), show.legend = F) + 
+    geom_smooth(method = 'lm', show.legend = F) +
+    labs(title = 'Life Expectancy vs. GDP per Capita in Europe for the Year {frame_time}', x = 'GDP per Capita', y = 'Life Expectancy') +
+    theme_minimal() +
+    gganimate::transition_time(year)
+
+# gganimate::anim_save("zachs_plot.gif")
+```
+
+
+```{r}
+#-----Question 8(a)(b)-----
+dfGap %>%
+  ggplot(aes(x = continent, y = lifeExp)) +
+    geom_boxplot() +
+    ggtitle("Comparing life expectancy across continents")
+```
+
+
+```{r}
+#-----Question 8(c)-----
+boxPlotsForAll <-
+  dfGap %>%
+  ggplot(aes(x = continent, y = lifeExp)) +
+    geom_boxplot() +
+    ggtitle("Comparing life expectancy across continents")
+
+plotly::ggplotly(boxPlotsForAll)
+```
+
+
+```{r}
+#-----Question 8(c) Laura Edition-----
+boxPlotsForAll <-
+  dfGap %>%
+  ggplot(aes(x = continent, y = lifeExp)) +
+    geom_boxplot() +
+    ggtitle("Comparing life expectancy across continents") + 
+    stat_summary(aes(y = lifeExp , label = round(..y.., 2)), fun.y = quantile, geom = "text")
+
+plotly::ggplotly(`boxPlotsForAll`)
+```
+
+
+```{r}
+#-----Question 8(d)-----
+boxPlotsForAllAnimated <- 
+  dfGap %>%
+  ggplot(aes(x = as.factor(continent), y = lifeExp)) + geom_boxplot() +
+  labs(title = 'Median Life Expectancy by Continent for the Year {frame_time}', x = 'Continent', y = 'Median Life Expectancy') +
+  gganimate::transition_time(year)
+
+boxPlotsForAllAnimated
+```
+
+
+```{r}
+#-----Question 9-----
+dfGap %>%
+  group_by(year, continent) %>%
+  summarize(medianGDPPerCap = median(gdpPercap)) %>%
+  ungroup() %>% 
+  ggplot(aes(x = year, y = medianGDPPerCap, color = continent)) +
+    geom_line()
+```
+
+
+```{r}
+#-----Question 9----- ALTERNATIVE, ONE-LINE LONGER SOLUTION
+dfGap %>%
+  group_by(year, continent) %>%
+  mutate(medianGDPPerCap = median(gdpPercap)) %>%
+  distinct(continent, .keep_all = TRUE) %>%
+  ungroup() %>% 
+  ggplot(aes(x = year, y = medianGDPPerCap, color = continent)) +
+    geom_line()
+```
+
+
+```{r}
+#-----Question 9(b)-----
+dfGap %>%
+  group_by(year, continent) %>%
+  summarize(meanGDPPerCap = mean(gdpPercap)) %>%
+  ungroup() %>% 
+  ggplot(aes(x = year, y = meanGDPPerCap, color = continent)) +
+    geom_line()
+```
+
+
+```{r}
+#-----Question 10-----
+gdpOverTime <-
+  dfGap %>%
+  group_by(year, continent) %>%
+  summarize(medianGDPPerCap = median(gdpPercap)) %>%
+  ungroup() %>% 
+  ggplot(aes(x = year, y = medianGDPPerCap, color = continent)) +
+    geom_line()
+
+plotly::ggplotly(gdpOverTime)
+```
