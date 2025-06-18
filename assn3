@@ -1,0 +1,445 @@
+---
+title: "Assignment 3 Template"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+### Reminders you can delete if you don't want them in your code or report:
+
+#### Shortcuts:
+
+- Use **CTRL ALT I** to add a new code chunk
+  - Use a new code chunk to answer a new question (or subquestion)
+  
+- Use **ALT -** for the assignment operator <-
+
+- Use **CTRL SHIFT M** for the pipe function %>%
+
+- Check out the dropdown menu at top right next to "Run" by clicking on the down arrow
+  - It will show you the shortcuts to **run a line, run current chunk, all chunks above, and all chunks**
+
+#### Good advice on function:
+
+- Use **read_csv** (NOT read.csv) to load the data
+  
+- When **%>%** function cannot be found, load the tidyverse library again
+
+- Do not load the libraries the instructions ask you **not** to load  
+
+  - **To load packages**: Run library("package_name")
+  - **Use without loading**: Specify package as **package_name::function_name**
+  - **To install packages:** Run install.packages("package_name") or use RStudio menu
+    - You might want to install packages for your project. Otherwise, you are covered.
+
+- R/RStudio is **case sensitive**, so lower vs. Upper case are different
+
+#### Good advice on style:
+
+- We are following the **Tidyverse Style Guide** (https://style.tidyverse.org/), **so does Google** (https://google.github.io/styleguide/Rguide.html)
+
+- Name objects and columns/variables by...
+  - either using an underscore such as **weekly_sales (preferable)**
+  - or starting lowercase and using uppercase for each word such as **weeklySales (still readable)**
+  
+- You will likely see a mix of the two styles in the labs/assignments
+  - Recently, I use **the former style for object names and the latter for column/variable names**
+  
+- There is much more to style: Keep up with the spaces, correct indentations, etc.
+  - When in doubt, visit **style.tidyverse.org** and/or **use the Styler package**
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions (& subquestions). You can delete this comment if you like.
+
+***
+
+
+```{r}
+# Load the libraries
+library('tidyverse')
+library('tidymodels')
+library('tidylog')
+
+```
+
+
+```{r}
+# Load the data
+dfb_org <- read_csv("data/capital-bikeshare.csv")
+
+skimr::skim(dfb_org) # => Stretch your focal pane window wider before running skimr::skim() for better readability
+
+```
+
+
+#### Q2 Data preparation
+```{r}
+# Create COUNT and extract MONTH from DATE
+library(lubridate)
+
+dfb_int <- 
+  dfb_org %>%
+  mutate(
+    COUNT = CASUAL + REGISTERED,
+    MONTH = lubridate:: month(DATE), 
+    MONTH = as.factor(MONTH)
+    )
+
+dfb_int
+```
+
+
+#### Q3 Basic regression model
+```{r}
+# Running a linear regression using COUNT as your Y variable and all other variables as X variables
+
+fit_all <- 
+  linear_reg() %>% 
+  fit(COUNT ~., data = dfb_int)
+
+summary(fit_all$fit)
+
+```
+
+
+#### Q4 Working with data and exploratory analysis
+```{r}
+#a Add a new variable called BADWEATHER
+
+dfb <- 
+  dfb_org %>%
+  mutate(
+    COUNT = CASUAL + REGISTERED,
+    BADWEATHER = ifelse(WEATHERSIT %in% c(3, 4), "YES", "NO")
+  )
+dfb
+```
+
+
+```{r}
+#b Present a scatterplot of COUNT (y-axis) and ATEMP (x-axis)
+
+dfb_scat <- 
+  dfb %>% 
+  ggplot(aes(x = ATEMP, y = COUNT, color = BADWEATHER)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Feels Like Temp. (Celsius)", y = "Total Bikes Rented")
+dfb_scat
+
+```
+
+
+```{r}
+#c Make two more scatterplots: One plot for CASUAL and one plot for REGISTERED
+dfb_scat_casual <- 
+  dfb %>% 
+  ggplot(aes(x = ATEMP, y = CASUAL, color = BADWEATHER)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Feels Like Temp. (Celsius)", y = "Total Bikes Rented", title = "Effect of Temperature on Casual Bike Rentals")
+dfb_scat_casual
+
+dfb_scat_reg <- 
+  dfb %>% 
+  ggplot(aes(x = ATEMP, y = REGISTERED, color = BADWEATHER)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Feels Like Temp. (Celsius)", y = "Total Bikes Rented", title = "Effect of Temperature on Registered Bike Rentals")
+dfb_scat_reg
+
+```
+
+
+```{r}
+#c (iv) One more scatterplot here
+
+dfb_scat_ <- 
+  dfb %>% 
+  ggplot(aes(x = ATEMP, y = COUNT)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Feels Like Temp. (Celsius)", y = "Total Bikes Rented", title = "Effect of Temperature on Bike Rentals")
+dfb_scat_
+```
+```{r}
+#d animate
+
+library(gganimate)
+
+dfb_scat_anim <- 
+  dfb %>% 
+  ggplot(aes(x = ATEMP, y = COUNT)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Feels Like Temp. (Celsius)", y = "Total Bikes Rented", title = "Effect on Temperature and Bike Rentals: Weekday = {closest_state}") +
+  theme_minimal() + 
+  gganimate::transition_states(WEEKDAY, transition_length = 1, state_length = 2) +
+  gganimate::view_follow()
+#anim_save("bike_weekday_animation.gif", animation = animate(dfb_scat_anim))
+
+```
+
+
+#### Q5 More linear regression
+```{r}
+# Run another regression for COUNT using the variables MONTH, WEEKDAY, BADWEATHER, TEMP, ATEMP, and HUMIDITY
+
+# prepping the data
+library(lubridate)
+
+dfb <- 
+  dfb %>%
+  mutate(
+    MONTH = lubridate::month(DATE),
+    MONTH = as.factor(MONTH)
+  )
+
+# creating the regression
+lin_reg_count <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + TEMP + ATEMP + HUMIDITY, data = dfb)
+
+summary(lin_reg_count$fit)
+
+```
+
+
+```{r}
+# Make the prediction
+
+predict_data <- 
+  tibble(
+    MONTH = factor(1),
+    WEEKDAY = "YES",
+    BADWEATHER = "YES",
+    TEMP = 20,
+    ATEMP = 18,
+    HUMIDITY = 60
+  )
+
+predict_count <- 
+  predict(lin_reg_count, new_data = predict_data)
+predict_count
+```
+
+
+#### Q6 Regression diagnostics
+```{r}
+# Check the model diagnostics
+
+performance::check_model(lin_reg_count$fit)
+
+```
+
+
+```{r}
+# Check multicollinearity again after mitigating it and rebuilding the model
+
+fit_count_fixed <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + ATEMP + HUMIDITY, data = dfb)
+
+performance::check_model(fit_count_fixed$fit)
+
+```
+
+
+#### Q7 Even more regression
+```{r}
+# Regressing COUNT on BADWEATHER only
+
+fit_badweather_count <- 
+  linear_reg() %>%
+  fit(COUNT ~ BADWEATHER, data = dfb)
+
+summary(fit_badweather_count$fit)
+
+```
+
+
+```{r}
+#b Regression incorporating the input of the consultant
+
+fit_badweather_count <- 
+  linear_reg() %>%
+  fit(COUNT ~ BADWEATHER * WEEKDAY, data = dfb)
+
+summary(fit_badweather_count$fit)
+
+```
+
+
+##### Q8 Predictive analytics
+```{r}
+# Set seed and split the data
+
+set.seed(3.14159)
+
+data_split <- initial_split(dfb, prop = 0.75)
+dfb_train <- training(data_split)
+dfb_test <- testing(data_split)
+
+```
+
+
+```{r}
+# Train the first model using the training data
+
+fit_org <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + ATEMP + HUMIDITY, data = dfb_train)
+summary(fit_org$fit)
+
+```
+
+
+```{r}
+# Make predictions using the first model in the test data and store them
+results_org <- 
+  predict(fit_org, new_data = dfb_test) %>% 
+  bind_cols(dfb_test) %>% 
+  rename(PREDICTEDBIKES = .pred)
+results_org
+
+```
+
+
+```{r}
+# Calculate the performance of the first model
+
+perf_metrics <- metric_set(rmse, mae) 
+
+perf_metrics(results_org, truth = COUNT , estimate = PREDICTEDBIKES)
+```
+
+
+```{r}
+# Rinse and repeat from here on...
+
+fit_new <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + ATEMP + HUMIDITY + WINDSPEED, data = dfb_train)
+summary(fit_new$fit)
+
+```
+
+
+```{r}
+# Make predictions using the second model
+results_new <- 
+  predict(fit_new, new_data = dfb_test) %>%
+  bind_cols(dfb_test) %>%
+  rename(PREDICTEDBIKES = .pred)
+
+```
+
+
+```{r}
+# Calculate performance metrics for the second model
+
+perf_metrics <- metric_set(rmse, mae) 
+
+perf_metrics(results_new, truth = COUNT, estimate = PREDICTEDBIKES)
+
+```
+
+
+##### Q11 Predictive analytics
+```{r}
+# Split data by year
+
+library(lubridate)
+
+dfb_train_time <- 
+  dfb %>% 
+  filter(lubridate::year(DATE) == 2011)
+
+dfb_test_time <- 
+  dfb %>% 
+    filter(lubridate::year(DATE) == 2012)
+
+```
+
+
+```{r}
+# Train model
+
+fit_time <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + ATEMP + HUMIDITY + WINDSPEED, data = dfb_train_time)
+summary(fit_time$fit)
+
+```
+
+
+```{r}
+# Make predictions from test data
+
+results_fit_time <- 
+  predict(fit_time, new_data = dfb_test_time) %>%
+  bind_cols(dfb_test_time) %>%
+  rename(PREDICTEDBIKES = .pred)
+results_fit_time
+
+```
+
+
+```{r}
+# Calculate performance metrics for Time Series Model
+
+perf_metrics <- metric_set(rmse, mae) 
+
+perf_metrics(results_fit_time, truth = COUNT, estimate = PREDICTEDBIKES)
+```
+
+
+```{r}
+# Split data by first 18 months of data to training set, and remaining 6 months to the test set.
+
+dfb_train_time_v2 <- 
+  dfb %>% 
+  filter(DATE <= '2012-06-01') 
+
+dfb_test_time_v2 <- 
+  dfb %>% 
+  filter(DATE > '2012-06-01')
+
+```
+
+
+```{r}
+# Train model
+
+fit_time_v2 <- 
+  linear_reg() %>%
+  fit(COUNT ~ MONTH + WEEKDAY + BADWEATHER + ATEMP + HUMIDITY + WINDSPEED, data = dfb_train_time_v2)
+summary(fit_time_v2$fit)
+
+```
+
+
+```{r}
+# Make predictions from test data
+
+results_fit_time_v2 <- 
+  predict(fit_time, new_data = dfb_test_time_v2) %>%
+  bind_cols(dfb_test_time_v2) %>%
+  rename(PREDICTEDBIKES = .pred)
+results_fit_time_v2
+
+```
+
+
+```{r}
+# Calculate performance metrics for Time Series Model v2
+
+perf_metrics <- metric_set(rmse, mae) 
+
+perf_metrics(results_fit_time_v2, truth = COUNT, estimate = PREDICTEDBIKES)
+```
+
+
